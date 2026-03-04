@@ -1,0 +1,7 @@
+user access:
+
+admin@gmail.com
+password123
+
+staff@gmail.com
+password123
