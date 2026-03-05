@@ -43,6 +43,8 @@ export interface InventoryItem {
     updated_at: string;
     category?: Category;
     supplier?: Supplier;
+    terms?: string;
+    paid_status?: 'unpaid' | 'partial' | 'paid';
 }
 
 // NEW: Batch Expiration Interfaces
@@ -112,6 +114,8 @@ export interface InventoryFormData {
     auto_generate_barcode?: boolean;
     barcode_prefix?: string;
     initial_reference?: string;
+    terms?: string;
+    paid_status?: 'unpaid' | 'partial' | 'paid';
 }
 
 export interface StockAdjustmentData {
@@ -131,27 +135,6 @@ export interface ReferenceNumberData {
 export interface BarcodeGenerationData {
     prefix?: string;
     item_ids?: number[];
-}
-
-export interface InventoryFilters {
-    search?: string;
-    category_id?: number;
-    supplier_id?: number;
-    status?: 'active' | 'inactive' | 'discontinued';
-    sort_by?: string;
-    sort_order?: 'asc' | 'desc';
-    page?: number;
-    per_page?: number;
-}
-
-export interface BulkUpdateData {
-    status?: 'active' | 'inactive' | 'discontinued';
-    category_id?: number;
-    supplier_id?: number;
-    price?: number;
-    cost?: number;
-    stock_quantity?: number;
-    minimum_stock?: number;
 }
 
 export interface DeletionCheckData {
@@ -176,7 +159,7 @@ export interface ApiResponse<T> {
     success: boolean;
     data: T;
     message?: string;
-    errors?: Record<string, unknown>;
+    errors?: Record<string, string | string[]>;
     detailed_errors?: ValidationError[];
     barcode_generated?: boolean;
     duplicate_reference?: {
@@ -267,7 +250,7 @@ export interface ProductSalesHistory {
 class InventoryService {
     private baseURL = '/api/inventory';
 
-    private async request<T>(method: string, url: string, data?: Record<string, unknown> | InventoryFormData | BarcodeGenerationData | StockAdjustmentData | BulkUpdateData): Promise<ApiResponse<T>> {
+    private async request<T>(method: string, url: string, data?: unknown): Promise<ApiResponse<T>> {
         const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
@@ -291,8 +274,8 @@ class InventoryService {
             const responseData = await response.json();
 
             if (!response.ok) {
-                const error = new Error(responseData.message || `Request failed with status ${response.status}`);
-                (error as unknown as Record<string, unknown>).response = responseData;
+                const error = new Error(responseData.message || `Request failed with status ${response.status}`) as Error & { response?: unknown };
+                error.response = responseData;
                 throw error;
             }
 
@@ -383,11 +366,11 @@ class InventoryService {
         return this.request<ProductSalesHistory[]>('GET', `${this.baseURL}/${id}/sales-history`);
     }
 
-    async bulkUpdate(itemIds: number[], updates: BulkUpdateData): Promise<ApiResponse<{ updated_count: number }>> {
-        return this.request<{ updated_count: number }>('POST', `${this.baseURL}/bulk-update`, { item_ids: itemIds, updates });
+    async bulkUpdate(itemIds: number[], updates: Record<string, unknown>): Promise<ApiResponse<Record<string, unknown>>> {
+        return this.request<Record<string, unknown>>('POST', `${this.baseURL}/bulk-update`, { item_ids: itemIds, updates });
     }
 
-    async exportItems(filters: Partial<InventoryFilters> = {}): Promise<Blob> {
+    async exportItems(filters: Record<string, unknown> = {}): Promise<Blob> {
         const query = new URLSearchParams();
         Object.entries(filters).forEach(([key, value]) => {
             if (value !== undefined && value !== null && value !== '') {
